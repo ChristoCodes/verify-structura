@@ -141,7 +141,7 @@ class CambioAsignaturasEstructuras extends AppController
         $this->replicateResponsabilityOffer($oldAcademicOffer, $newAcademicOffer);
         $this->insertIfNotExistsAcademicOfferAcademicSquare($newAcademicOffer->id, $NewAcademicSquare->id);
 
-        $groupsInfo = $this->proccessAcademicGroups($oldAcademicGroups, $NewAcademicSquare, $newAcademicOffer);
+        $groupsInfo = $this->proccessAcademicGroups($oldAcademicGroups, $NewAcademicSquare, $newAcademicOffer, true);
         $oldAcademicGroups = $groupsInfo['oldAcademicGroups'];
         $newAcademicGroups = $groupsInfo['newAcademicGroups'];;
         $matchedGroups = $groupsInfo['matchedGroups'];;
