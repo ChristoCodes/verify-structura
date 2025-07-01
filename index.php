@@ -1378,21 +1378,35 @@ class CambioAsignaturasEstructuras extends AppController
         $OldAcademicSquare = PlazaAcademica::findOrCreate($currentCall, $OldAcademicNodeSubject);
         $NewAcademicSquare = PlazaAcademica::findOrCreate($newCall, $NewAcademicNodeSubject);
 
-        // Obtener inscripciones antes y después
         $oldEnrollments = $this->getEnrollmentsByProgram($data['program_abbr'], $data['subject_abbr'], $term);
-        $newEnrollments = $this->getEnrollmentsByProgram($data['program_abbr'], $data['subject_abbr'], $term); // Puede cambiar si cambia la asignatura
+        $subjectForNew = isset($data['new_subject_abbr']) && $data['new_subject_abbr'] ? $data['new_subject_abbr'] : $data['subject_abbr'];
+        $newEnrollments = $this->getEnrollmentsByProgram($data['program_abbr'], $subjectForNew, $term);
 
-        // Verificar que las selecciones académicas de los estudiantes estén en el nuevo grupo/asignatura
-        $errores = [];
+        $oldEnrollmentIds = [];
+        foreach ($oldEnrollments as $enrollment) {
+            $oldEnrollmentIds[] = $enrollment->inscripcion_id;
+        }
+        $newEnrollmentIds = [];
         foreach ($newEnrollments as $enrollment) {
+            $newEnrollmentIds[] = $enrollment->inscripcion_id;
+        }
+
+        $errores = [];
+        foreach ($oldEnrollments as $enrollment) {
             $admission = \CTDesarrollo\Core\Expedientes\Registros\Models\Admision::getAdmisionPorConvocatoria($enrollment, $newCall);
             $selection = \CTDesarrollo\Core\Expedientes\Registros\Models\SeleccionAcademica::getSeleccionAcademicaPorAdmision($admission, $NewAcademicNodeSubject->id);
             if (!$selection || !$selection->id) {
                 $errores[] = "El estudiante con inscripción {$enrollment->inscripcion_id} no tiene selección académica en el nuevo grupo/asignatura.";
             }
         }
+
+        $extraStudents = array_diff($newEnrollmentIds, $oldEnrollmentIds);
+        foreach ($extraStudents as $extraId) {
+            $errores[] = "El estudiante con inscripción {$extraId} está en la nueva asignatura/grupo pero no estaba en la original.";
+        }
+
         if (count($errores) === 0) {
-            static::logProccess('Verificación exitosa: Todos los estudiantes tienen selección académica en el nuevo grupo/asignatura.', true);
+            static::logProccess('Verificación exitosa: Todos los estudiantes fueron correctamente trasladados al nuevo grupo/asignatura.', true);
         } else {
             foreach ($errores as $err) {
                 static::logProccess($err, false);
