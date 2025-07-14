@@ -1,0 +1,114 @@
+============================
+IMPLEMENTACIÓN DE SUB-ETAPAS DINÁMICAS EN TESIS
+============================
+
+# 1. Cambios en thesis-core
+
+## a) Migración para la tabla de sub-etapas
+
+Schema::create('thesis_sub_steps', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('thesis_step_id')->constrained('thesis_steps');
+    $table->string('abbr'); // Ej: 'tesis_doctoral_definitiva'
+    $table->json('name_i18n');
+    $table->string('status')->default('pendiente'); // Ej: pendiente, aprobado, rechazado
+    $table->timestamps();
+});
+
+## b) Modelo ThesisSubStep
+
+namespace AcademicObligations\ThesisCore\Thesis\Models\Entities;
+
+use Illuminate\Database\Eloquent\Model;
+
+class ThesisSubStep extends Model
+{
+    protected $fillable = ['thesis_step_id', 'abbr', 'name_i18n', 'status'];
+
+    public function step()
+    {
+        return $this->belongsTo(ThesisStep::class, 'thesis_step_id');
+    }
+}
+
+## c) Relación en ThesisStep
+
+public function substeps()
+{
+    return $this->hasMany(ThesisSubStep::class, 'thesis_step_id');
+}
+
+## d) Seeder de sub-etapas
+
+$td1 = ThesisStep::where('abbr', 'TD1')->first();
+
+$td1->substeps()->create([
+    'abbr' => 'tesis_doctoral_definitiva',
+    'name_i18n' => Translation::fromRaw(['es_ES' => 'Tesis Doctoral Definitiva', 'en_US' => 'Definitive Doctoral Thesis']),
+    'status' => 'pendiente',
+]);
+
+
+============================
+# 2. Cambios en thesis-documents
+
+## a) (Opcional) Relación con sub-etapas
+
+public function thesisSubSteps()
+{
+    return $this->hasManyThrough(
+        \AcademicObligations\ThesisCore\Thesis\Models\Entities\ThesisSubStep::class,
+        \AcademicObligations\ThesisCore\Thesis\Models\Entities\ThesisStep::class,
+        'id', // Foreign key on ThesisStep
+        'thesis_step_id', // Foreign key on ThesisSubStep
+        'thesis_id', // Local key on ThesisDocument
+        'id' // Local key on ThesisStep
+    );
+}
+// O simplemente consulta por el thesis_id y luego por el paso y sub-etapas.
+
+## b) Validación dinámica
+
+$substep = ThesisSubStep::where('thesis_step_id', $document->thesis->step->id)
+    ->where('abbr', 'tesis_doctoral_definitiva')
+    ->first();
+
+if ($substep->status === 'pendiente') {
+    // Permitir acción (ej: subir archivo)
+} elseif ($substep->status === 'aprobado') {
+    // Deshabilitar acción o mostrar mensaje
+}
+
+## c) Actualizar el estado
+
+$substep->status = 'aprobado';
+$substep->save();
+
+## d) Validar avance de etapa
+
+$allApproved = $document->thesis->step->substeps->every(fn($s) => $s->status === 'aprobado');
+if ($allApproved) {
+    // Permitir avanzar a la siguiente etapa
+}
+
+============================
+# 3. Ventajas de este enfoque
+
+- Solo actualizas el campo status de cada sub-etapa.
+- No hay datos quemados, todo es dinámico y configurable.
+- Puedes agregar/quitar sub-etapas desde la base de datos.
+- El frontend puede consultar el estado y mostrar la UI adecuada.
+
+============================
+# 4. Resumen de pasos
+
+1. En thesis-core:
+   - Crear tabla y modelo de sub-etapas con campo status.
+   - Relacionar con ThesisStep.
+   - Sembrar sub-etapas necesarias.
+
+2. En thesis-documents:
+   - Consultar y actualizar el estado de las sub-etapas según la lógica de negocio.
+   - Validar avance de etapa revisando el estado de todas las sub-etapas.
+
+============================ 
