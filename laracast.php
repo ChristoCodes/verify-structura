@@ -2,28 +2,32 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
 </head>
 
 <body>
-    <?php
+  <?php
 
-    $books = [
-        "Do Androids Dream of Electric Sheep?",
-        "The Langoliers",
-        "Project Hail Mary"
-    ];
-    ?>
+  $books = [
+    "Do Androids Dream of Electric Sheep?",
+    "The Langoliers",
+    "Project Hail Mary
+    
+    
+    
+    "
+  ];
+  ?>
 
-    <ul>
+  <ul>
 
-        <?php foreach ($books as $book ) : ?>
-            <li> <?= $book ?></li>
-        <?php endforeach ?>
+    <?php foreach ($books as $book) : ?>
+      <li> <?= $book ?></li>
+    <?php endforeach ?>
 
-    </ul>
+  </ul>
 </body>
 
-</html> 
+</html>

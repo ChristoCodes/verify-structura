@@ -1,0 +1,41 @@
+============================
+VALIDACIONES DINÁMICAS DE SUB-ETAPAS (SIN NOMBRES QUEMADOS)
+============================
+
+// Obtener la etapa actual del documento de tesis
+$thesisStep = $document->thesis->step; // Etapa actual (TD1, TD2, ...)
+
+// Obtener todas las sub-etapas de esa etapa
+$substeps = $thesisStep->substeps; // Collection de sub-etapas
+
+// 1. ¿Puede el estudiante subir algún documento en la etapa actual?
+$canUpload = $substeps->contains(fn($s) => $s->status === 'pendiente');
+
+if ($canUpload) {
+    // Permitir mostrar el formulario o botón de subida
+} else {
+    // Deshabilitar subida o mostrar mensaje
+}
+
+// 2. ¿Puede avanzar a la siguiente etapa?
+$allApproved = $substeps->count() > 0 && $substeps->every(fn($s) => $s->status === 'aprobado');
+
+if ($allApproved) {
+    // Permitir avanzar a la siguiente etapa (ej: TD3, TD4, ...)
+} else {
+    // No permitir avanzar
+}
+
+// 3. Ejemplo de actualización de estado de una sub-etapa (cuando se aprueba)
+$substep = $substeps->firstWhere('status', 'pendiente'); // O la sub-etapa específica que corresponda
+if ($substep) {
+    $substep->status = 'aprobado';
+    $substep->save();
+}
+
+// 4. Nota:
+// - No hay nombres quemados de sub-etapas ni etapas.
+// - Todo es dinámico y funciona para cualquier etapa y cualquier cantidad de sub-etapas.
+// - Puedes adaptar la lógica según tus necesidades de negocio.
+
+============================ 
