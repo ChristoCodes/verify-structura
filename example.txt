@@ -1,0 +1,5 @@
+primero tengo que agrega esta validacion en el model ThesisStep
+en la metada             $table->string('thesis_sub_status')->nullable()->index();
+en el modelo de metada agregar esto 
+ * @property string thesis_sub_status
+
