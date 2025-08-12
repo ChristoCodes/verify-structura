@@ -1,0 +1,126 @@
+<?php
+
+namespace AcademicObligations\ThesisCore\InternalEvents\Events;
+
+use AcademicObligations\ThesisCore\Thesis\Models\Thesis;
+use Illuminate\Queue\SerializesModels;
+
+class ThesisTrackingEvent
+{
+  use SerializesModels;
+
+  public const TYPE_CREATE_THESIS = 'create_thesis';
+  public const TYPE_UPDATE_BASIC_DATA = 'update_basic_data';
+  public const TYPE_UPDATE_RESPONSIBLES = 'update_responsibles';
+  public const TYPE_STATUS_CHANGE = 'status_change';
+
+  public function __construct(
+    public Thesis $thesis,
+    public string $type,
+    public array $data = [],
+    public ?string $userId = null,
+    public ?string $message = null
+  ) {}
+
+  public static function createThesis(Thesis $thesis): self
+  {
+    return new self(
+      thesis: $thesis,
+      type: self::TYPE_CREATE_THESIS,
+      data: [
+        'status' => 'Tarea 0: Ficha Doctoral',
+        'message' => 'Se ha iniciado el proceso de Tesis Doctoral y se ha asignado el estado Tarea 0 - Ficha Doctoral'
+      ]
+    );
+  }
+
+  public static function updateBasicData(
+    Thesis $thesis,
+    array $changes,
+    string $userId
+  ): self {
+    $messages = [];
+    foreach ($changes as $field => $change) {
+      $oldValue = $change['old'] ?? '';
+      $newValue = $change['new'] ?? '';
+
+      if ($oldValue && $newValue) {
+        $messages[] = "Se ha cambiado el {$field}: {$oldValue} por {$newValue}";
+      } else {
+        $messages[] = "Se ha ingresado el {$field}: {$newValue}";
+      }
+    }
+
+    return new self(
+      thesis: $thesis,
+      type: self::TYPE_UPDATE_BASIC_DATA,
+      data: [
+        'changes' => $changes,
+        'status' => $thesis->thesis_status?->name ?? 'Sin estado'
+      ],
+      userId: $userId,
+      message: implode('. ', $messages)
+    );
+  }
+
+  public static function updateResponsibles(
+    Thesis $thesis,
+    array $changes,
+    string $userId
+  ): self {
+    $messages = [];
+    foreach ($changes as $action => $responsible) {
+      $messages[] = "Se ha {$action} el {$responsible['type']}: {$responsible['name']}";
+    }
+
+    return new self(
+      thesis: $thesis,
+      type: self::TYPE_UPDATE_RESPONSIBLES,
+      data: [
+        'changes' => $changes,
+        'status' => $thesis->thesis_status?->name ?? 'Sin estado'
+      ],
+      userId: $userId,
+      message: implode('. ', $messages)
+    );
+  }
+
+  public static function statusChange(
+    Thesis $thesis,
+    string $oldStatus,
+    string $newStatus,
+    string $userId
+  ): self {
+    return new self(
+      thesis: $thesis,
+      type: self::TYPE_STATUS_CHANGE,
+      data: [
+        'old_status' => $oldStatus,
+        'new_status' => $newStatus,
+        'status' => $newStatus
+      ],
+      userId: $userId,
+      message: "Se ha cambiado el estado de la tesis de {$oldStatus} a {$newStatus}"
+    );
+  }
+}
+
+
+   private function detectChanges(Thesis $thesis, Thesis $originalThesis): array
++    {
++        $changes = [];
++        $fields = ['title', 'objective', 'observation', 'research_type', 'language'];
++        
++        foreach ($fields as $field) {
++            $oldValue = $originalThesis->$field;
++            $newValue = $thesis->$field;
++            
++            if ($oldValue !== $newValue) {
++                $changes[$field] = [
++                    'old' => $oldValue,
++                    'new' => $newValue
++                ];
++            }
++        }
++        
++        return $changes;
