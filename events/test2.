@@ -1,0 +1,169 @@
+<?php
+
+namespace Tests\Feature\InternalEvents;
+
+use AcademicObligations\ThesisCore\Thesis\Actions\UpdateBasicDataThesis;
+use AcademicObligations\ThesisCore\Thesis\Http\Requests\UpdateThesisRequest;
+use AcademicObligations\ThesisCore\Thesis\Models\Thesis;
+use AcademicObligations\ThesisCore\Tracking\Models\Tracking;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class ThesisBasicDataUpdatedTrackingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Thesis $thesis;
+    private UpdateThesisRequest $request;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        // Crear una tesis de prueba
+        $this->thesis = Thesis::factory()->create([
+            'title' => 'Título Original',
+            'objective' => 'Objetivo Original',
+            'observation' => 'Observación Original',
+            'research_type' => 'Investigación Original',
+            'language' => 'Español',
+        ]);
+
+        // Crear request de actualización
+        $this->request = new UpdateThesisRequest();
+        $this->request->merge([
+            'title' => 'Título Actualizado',
+            'objective' => 'Objetivo Actualizado',
+            'observation' => 'Observación Actualizada',
+            'research_type' => 'Investigación Actualizada',
+            'language' => 'Inglés',
+            'research_focuses' => [],
+        ]);
+    }
+
+    /** @test */
+    public function it_dispatches_thesis_basic_data_updated_event_when_updating_thesis()
+    {
+        // Arrange
+        Event::fake();
+        
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $action->execute($this->request, $this->thesis->uuid);
+
+        // Assert
+        Event::assertDispatched(\AcademicObligations\ThesisCore\Tracking\InternalEvents\Events\ThesisBasicDataUpdatedEvent::class);
+    }
+
+    /** @test */
+    public function it_creates_tracking_record_when_basic_data_is_updated()
+    {
+        // Arrange
+        $initialTrackingCount = Tracking::count();
+        
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $action->execute($this->request, $this->thesis->uuid);
+
+        // Assert
+        $this->assertEquals($initialTrackingCount + 1, Tracking::count());
+        
+        $tracking = Tracking::latest()->first();
+        $this->assertEquals($this->thesis->uuid, $tracking->aggregate_uuid);
+        $this->assertStringContainsString('Título', $tracking->message);
+        $this->assertStringContainsString('Objetivo', $tracking->message);
+    }
+
+    /** @test */
+    public function it_includes_old_and_new_values_in_tracking_message()
+    {
+        // Arrange
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $action->execute($this->request, $this->thesis->uuid);
+
+        // Assert
+        $tracking = Tracking::latest()->first();
+        $message = $tracking->message;
+        
+        // Verificar que el mensaje contiene información de cambio
+        $this->assertStringContainsString('Título Original', $message);
+        $this->assertStringContainsString('Título Actualizado', $message);
+        $this->assertStringContainsString('Objetivo Original', $message);
+        $this->assertStringContainsString('Objetivo Actualizado', $message);
+    }
+
+    /** @test */
+    public function it_handles_partial_updates_correctly()
+    {
+        // Arrange
+        $partialRequest = new UpdateThesisRequest();
+        $partialRequest->merge([
+            'title' => 'Solo Título Cambiado',
+            'objective' => $this->thesis->objective, // Sin cambios
+            'observation' => $this->thesis->observation, // Sin cambios
+            'research_type' => $this->thesis->research_type, // Sin cambios
+            'language' => $this->thesis->language, // Sin cambios
+            'research_focuses' => [],
+        ]);
+        
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $action->execute($partialRequest, $this->thesis->uuid);
+
+        // Assert
+        $tracking = Tracking::latest()->first();
+        $message = $tracking->message;
+        
+        // Solo debe mostrar cambios en el título
+        $this->assertStringContainsString('Título Original', $message);
+        $this->assertStringContainsString('Solo Título Cambiado', $message);
+        $this->assertStringNotContainsString('Objetivo', $message);
+    }
+
+    /** @test */
+    public function it_does_not_create_tracking_when_no_data_changes()
+    {
+        // Arrange
+        $noChangeRequest = new UpdateThesisRequest();
+        $noChangeRequest->merge([
+            'title' => $this->thesis->title,
+            'objective' => $this->thesis->objective,
+            'observation' => $this->thesis->observation,
+            'research_type' => $this->thesis->research_type,
+            'language' => $this->thesis->language,
+            'research_focuses' => [],
+        ]);
+        
+        $initialTrackingCount = Tracking::count();
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $action->execute($noChangeRequest, $this->thesis->uuid);
+
+        // Assert
+        $this->assertEquals($initialTrackingCount, Tracking::count());
+    }
+
+    /** @test */
+    public function it_preserves_thesis_data_after_update()
+    {
+        // Arrange
+        $action = app(UpdateBasicDataThesis::class);
+
+        // Act
+        $updatedThesis = $action->execute($this->request, $this->thesis->uuid);
+
+        // Assert
+        $this->assertEquals('Título Actualizado', $updatedThesis->title);
+        $this->assertEquals('Objetivo Actualizado', $updatedThesis->objective);
+        $this->assertEquals('Observación Actualizada', $updatedThesis->observation);
+        $this->assertEquals('Investigación Actualizada', $updatedThesis->research_type);
+        $this->assertEquals('Inglés', $updatedThesis->language);
+    }
+} 
